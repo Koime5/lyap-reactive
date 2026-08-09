@@ -1,4 +1,5 @@
 import { Node } from "../core/node";
+import { notify } from "../core/notify";
 import { track } from "../core/tracking";
 
 export class SignalNode<T> extends Node {
@@ -37,5 +38,5 @@ function setSignal<T>(node: SignalNode<T>, value: T) {
 
     node.value = value;
     node.version++;
-    //markdirty to node
+    notify(node);
 }
