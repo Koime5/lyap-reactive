@@ -21,6 +21,12 @@ export const enum NodeFlags {
      * or null.
      */
     OBSERVER_EDGE = 1 << 5,
+
+    /**
+     * Set on an observer when a upstream computed dependency is marked dirty.
+     * Indicates that dependencies MAY have changed, but computed evaluation is required.
+     */
+    PENDING = 1 << 6,
 }
 
 export interface Flagged {
