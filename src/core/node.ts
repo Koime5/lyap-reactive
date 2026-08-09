@@ -36,5 +36,8 @@ export abstract class Node {
      */
     lastLinkedEpoch = 0;
 
+    lastLinkedObserver: Node | null = null;
+    lastLinkedEdge: Edge | null = null;
+
     owner: Owner | null = null;
 }

@@ -1,7 +1,7 @@
 import { globalEdgePool, type Edge } from "../core/edge.js";
 import { removeFlag, NodeFlags, hasFlag } from "../core/flags.js";
-import { Node } from "../core/node";
-import { findLink } from "./link";
+import { Node } from "../core/node.js";
+import { findLink } from "./link.js";
 
 /**
  * Removes an existing source -> observer relationship.
@@ -59,9 +59,15 @@ export function unlinkEdge(edge: Edge): void {
         nextTarget.prevTarget = prevTarget;
     }
 
-
     if (target.sourceLink === null) {
         removeFlag(target, NodeFlags.SOURCE_EDGE);
+    }
+
+    // invalidate source's relationship cache
+    if (source.lastLinkedEdge === edge) {
+        source.lastLinkedEdge = null;
+        source.lastLinkedObserver = null;
+        source.lastLinkedEpoch = 0;
     }
 
     globalEdgePool.release(edge);
@@ -103,7 +109,13 @@ export function unlink(target: Node): void {
          * on both nodes.
          */
         if (!hasFlag(source, NodeFlags.OBSERVER_EDGE)) {
-            source.observerLink = null;
+            if (source.observerLink === target) {
+                source.observerLink = null;
+            }
+            if (source.lastLinkedObserver === target) {
+                source.lastLinkedObserver = null;
+                source.lastLinkedEpoch = 0;
+            }
             return;
         }
 

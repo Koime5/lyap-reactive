@@ -42,7 +42,7 @@ export function findLink(
  * 
  * There is no duplication check.
  */
-export function link(source: Node, target: Node): void {
+export function link(source: Node, target: Node): Edge | null {
 
     const sourceNeedsEdges = source.observerLink !== null;
     const targetNeedsEdges = target.sourceLink !== null;
@@ -50,7 +50,7 @@ export function link(source: Node, target: Node): void {
     if (!sourceNeedsEdges && !targetNeedsEdges) {
         source.observerLink = target;
         target.sourceLink = source;
-        return;
+        return null;
     }
 
     if (sourceNeedsEdges && !hasFlag(source, NodeFlags.OBSERVER_EDGE)) {
@@ -69,6 +69,8 @@ export function link(source: Node, target: Node): void {
 
     insertSourceEdge(source, edge);
     insertTargetEdge(target, edge);
+
+    return edge;
 }
 
 /**

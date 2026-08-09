@@ -26,19 +26,52 @@ export function track(source: Node): void {
     if (observer === null) return;
 
     const epoch = observer.trackingEpoch;
-    const last = source.lastLinkedEpoch;
 
-    if (last === epoch) {
-        return; // already linked during this pass
+    // duplicate in same effect run
+    if (
+        source.lastLinkedEpoch === epoch &&
+        source.lastLinkedObserver === observer
+    ) {
+        return;
     }
 
-    if (last > epoch) {
-        if (findLink(source, observer) !== null) {
+    // cache-hit
+    if (source.lastLinkedObserver === observer) {
+        const edge = source.lastLinkedEdge;
 
-            source.lastLinkedEpoch = epoch;
-            return;
+        source.lastLinkedEpoch = epoch;
+
+        if (edge !== null) {
+            edge.seenEpoch = epoch;
         }
+
+        return;
     }
+
+    // cache-miss
+    const existing = findLink(source, observer);
+
+    if (existing !== null) {
+        source.lastLinkedObserver = observer;
+        source.lastLinkedEpoch = epoch;
+
+        if (existing !== true) {
+            source.lastLinkedEdge = existing;
+            existing.seenEpoch = epoch;
+        } else {
+            source.lastLinkedEdge = null;
+        }
+
+        return;
+    }
+
+    //new dep
+    const edge = link(source, observer);
+    source.lastLinkedObserver = observer;
     source.lastLinkedEpoch = epoch;
-    link(source, observer);
+    source.lastLinkedEdge = edge;
+
+    if (edge !== null) {
+        edge.seenEpoch = epoch;
+    }
 }

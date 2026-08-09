@@ -19,6 +19,8 @@ export class Edge {
     // version observed by target
     seenVersion = 0;
 
+    seenEpoch = 0;
+
     reset(): void {
 
         this.source = null;
@@ -31,6 +33,7 @@ export class Edge {
         this.prevTarget = null;
 
         this.seenVersion = 0;
+        this.seenEpoch = 0;
     }
 
 }
