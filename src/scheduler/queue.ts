@@ -16,7 +16,9 @@ export function queueEffect(effect: Node): void {
     effect.flags |= NodeFlags.QUEUED;
     effectQueue.push(effect);
 
-    scheduleMicrotask(flushQueue);
+    if (!isFlushing) {
+        scheduleMicrotask(flushQueue);
+    }
 }
 
 /**
@@ -29,9 +31,7 @@ export function flushQueue(): void {
     try {
         let i = 0;
         while (i < effectQueue.length) {
-            const effect = effectQueue[i++];
-            if (effect === undefined) break;
-
+            const effect = effectQueue[i++]!;
             effect.flags &= ~NodeFlags.QUEUED;
 
             // Skip disposed nodes
@@ -39,11 +39,9 @@ export function flushQueue(): void {
                 continue;
             }
 
-            // Only run if still DIRTY
-            if ((effect.flags & NodeFlags.DIRTY) !== 0) {
-                if ((effect as any).run) {
-                    (effect as any).run();
-                }
+            // Run if DIRTY or PENDING
+            if ((effect.flags & (NodeFlags.DIRTY | NodeFlags.PENDING)) !== 0) {
+                (effect as unknown as { run(): void }).run();
             }
         }
     } finally {

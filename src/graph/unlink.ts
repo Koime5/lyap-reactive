@@ -74,6 +74,30 @@ export function unlinkEdge(edge: Edge): void {
 }
 
 /**
+ * Unlinks a single direct dependency relationship between target and source.
+ */
+export function unlinkDirect(target: Node, source: Node): void {
+    target.sourceLink = null;
+
+    if (!hasFlag(source, NodeFlags.OBSERVER_EDGE)) {
+        if (source.observerLink === target) {
+            source.observerLink = null;
+        }
+        if (source.lastLinkedObserver === target) {
+            source.lastLinkedObserver = null;
+            source.lastLinkedEpoch = 0;
+        }
+        return;
+    }
+
+    const edge = findLink(source, target);
+
+    if (edge !== null && edge !== true) {
+        unlinkEdge(edge);
+    }
+}
+
+/**
  * Remove all dependencies of a target node.
  *
  * Used when:
@@ -83,7 +107,6 @@ export function unlinkEdge(edge: Edge): void {
  * O(number of dependencies).
  */
 export function unlink(target: Node): void {
-
     const link = target.sourceLink; 
     if (link === null) {
         return;
@@ -98,40 +121,8 @@ export function unlink(target: Node): void {
      * No Edge exists on the target side.
      */
     if (!hasFlag(target, NodeFlags.SOURCE_EDGE)) {
-
         const source = link as Node;
-        target.sourceLink = null;
-
-        /*
-         * Source also has a single direct observer.
-         *
-         * Therefore the relationship is represented directly
-         * on both nodes.
-         */
-        if (!hasFlag(source, NodeFlags.OBSERVER_EDGE)) {
-            if (source.observerLink === target) {
-                source.observerLink = null;
-            }
-            if (source.lastLinkedObserver === target) {
-                source.lastLinkedObserver = null;
-                source.lastLinkedEpoch = 0;
-            }
-            return;
-        }
-
-        /*
-         * Source has multiple observers.
-         *
-         * The relationship target ← source is represented by
-         * an Edge on source's observer list.
-         *
-         * This is the only slow path.
-         */
-        const existing = findLink(source, target);
-
-        if (existing !== null && existing !== true) {
-            unlinkEdge(existing);
-        }
+        unlinkDirect(target, source);
         return;
     }
 
