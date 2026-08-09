@@ -41,3 +41,9 @@ export function removeFlag(obj: Flagged, flag: NodeFlags): void {
 export function hasFlag(obj: Flagged, flag: NodeFlags): boolean {
     return (obj.flags & flag) !== 0;
 }
+
+export const enum NodeKind {
+    SIGNAL,
+    COMPUTED,
+    EFFECT,
+}

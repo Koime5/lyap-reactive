@@ -1,32 +1,34 @@
-import { hasFlag, NodeFlags } from "../core/flags";
-import type { Edge } from "../core/edge";
-import type { Node } from "../core/node";
-import { markDirty } from "./dirty";
+import { NodeFlags } from "./flags.js";
+import type { Edge } from "./edge.js";
+import type { Node } from "./node.js";
+import { markDirty } from "./dirty.js";
 
+/**
+ * Notifies observers of a source node that its value has updated.
+ * Optimized with local variable caching, seenVersion checking, and inline bitwise flags.
+ */
 export function notify(source: Node): void {
     const link = source.observerLink;
-
-    if (link === null) {
-        return;
-    }
+    if (link === null) return;
 
     const version = source.version;
 
-    if (!hasFlag(source, NodeFlags.OBSERVER_EDGE)) {
+    // Single Observer mode (0/1 direct link)
+    if ((source.flags & NodeFlags.OBSERVER_EDGE) === 0) {
         markDirty(link as Node);
         return;
     }
 
-    let edge = link as Edge | null;
-
+    // Multi Observer mode (Edge list)
+    let edge: Edge | null = link as Edge;
     while (edge !== null) {
-        const next = edge.nextSource;
-
+        const next: Edge | null = edge.nextSource;
         if (edge.seenVersion !== version) {
             edge.seenVersion = version;
-            markDirty(edge.target);
+            if (edge.target !== null) {
+                markDirty(edge.target);
+            }
         }
-
         edge = next;
     }
 }

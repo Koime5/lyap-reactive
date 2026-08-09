@@ -1,6 +1,6 @@
 import type { Owner } from "../scope/owner.js";
 import type { Edge } from "./edge.js";
-import { NodeFlags } from "./flags.js";
+import { NodeFlags, NodeKind } from "./flags.js";
 
 /**
  * Represent a reactive Node in the dependency graph.
@@ -16,6 +16,7 @@ import { NodeFlags } from "./flags.js";
 export abstract class Node {
 
     flags = NodeFlags.CLEAN;
+    kind = NodeKind.SIGNAL;
 
     version = 0;
     lastCheckedVersion = 0;
