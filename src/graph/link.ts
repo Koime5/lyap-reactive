@@ -1,6 +1,6 @@
 import { globalEdgePool, type Edge } from "../core/edge.js";
 import { addFlag, hasFlag, NodeFlags } from "../core/flags.js";
-import type { Node } from "../core/node.js";
+import { Node } from "../core/node.js";
 
 
 export type ExistingLink = Edge | true | null;
@@ -33,94 +33,159 @@ export function findLink(
 
     return null;
 }
+
 /**
- * Connects a source (dependency) to a target (observer) in the reactive graph.
- *
- * Duplicate detection is handled upstream by {@link track} (epoch-based, O(1)),
- * so this function assumes the edge does not already exist.
- *
- * Pipeline:
- * 1. Check if source or target will need Edge representation (has >1)
- * 2. Fast-path: Both empty -> direct Node <-> Node
- * 3. Promote source's existing single relationship to Edge mode
- * 4. Promote target's existing single relationship to Edge mode
- * 5. Create ONE Edge for (source -> target)
- * 6. Insert that SAME Edge into both linked lists
+ * Create a new source -> observer relationship.
+ * 
+ * IMPORTANT:
+ * The caller must have established that 
+ * this relationship does not already exit.
+ * 
+ * There is no duplication check.
  */
 export function link(source: Node, target: Node): void {
-    // 1. Check if source or target will need Edge representation
-    const sourceNeedsEdge = source.observerLink !== null;
-    const targetNeedsEdge = target.sourceLink !== null;
 
-    // 2. Fast-path: Both empty -> direct Node <-> Node
-    if (!sourceNeedsEdge && !targetNeedsEdge) {
+    const sourceNeedsEdges = source.observerLink !== null;
+    const targetNeedsEdges = target.sourceLink !== null;
+
+    if (!sourceNeedsEdges && !targetNeedsEdges) {
         source.observerLink = target;
         target.sourceLink = source;
         return;
     }
 
-    // 3. Promote source's existing single relationship to Edge mode
-    if (source.observerLink !== null && !hasFlag(source, NodeFlags.OBSERVER_EDGE)) {
-        const oldTarget = source.observerLink as Node;
-        const oldEdge = globalEdgePool.acquire();
-        oldEdge.source = source;
-        oldEdge.target = oldTarget;
-        oldEdge.seenVersion = source.version;
-
-        source.observerLink = oldEdge;
-        addFlag(source, NodeFlags.OBSERVER_EDGE);
-
-        if (hasFlag(oldTarget, NodeFlags.SOURCE_EDGE)) {
-            const head = oldTarget.sourceLink as Edge;
-            oldEdge.nextTarget = head;
-            head.prevTarget = oldEdge;
-            oldTarget.sourceLink = oldEdge;
-        }
+    if (sourceNeedsEdges && !hasFlag(source, NodeFlags.OBSERVER_EDGE)) {
+        promoteSource(source);
     }
 
-    // 4. Promote target's existing single relationship to Edge mode
-    if (target.sourceLink !== null && !hasFlag(target, NodeFlags.SOURCE_EDGE)) {
-        const oldSource = target.sourceLink as Node;
-        const oldEdge = globalEdgePool.acquire();
-        oldEdge.source = oldSource;
-        oldEdge.target = target;
-        oldEdge.seenVersion = oldSource.version;
-
-        target.sourceLink = oldEdge;
-        addFlag(target, NodeFlags.SOURCE_EDGE);
-
-        if (hasFlag(oldSource, NodeFlags.OBSERVER_EDGE)) {
-            const head = oldSource.observerLink as Edge;
-            oldEdge.nextSource = head;
-            head.prevSource = oldEdge;
-            oldSource.observerLink = oldEdge;
-        }
+    if (targetNeedsEdges && !hasFlag(target, NodeFlags.SOURCE_EDGE)) {
+        promoteTarget(target);
     }
 
-    // 5. Create ONE Edge for (source -> target)
     const edge = globalEdgePool.acquire();
+
     edge.source = source;
     edge.target = target;
     edge.seenVersion = source.version;
 
-    // 6. Insert the edge into target's source list
-    if (hasFlag(target, NodeFlags.SOURCE_EDGE)) {
-        const head = target.sourceLink as Edge;
-        edge.nextTarget = head;
-        head.prevTarget = edge;
+    insertSourceEdge(source, edge);
+    insertTargetEdge(target, edge);
+}
+
+/**
+ * Promote the source's existing direct relationship:
+ *
+ *     source.observerLink = target
+ *
+ * into:
+ *
+ *     source.observerLink = Edge
+ *     target.sourceLink   = Edge
+ */
+
+function promoteSource(source: Node): void {
+    const target = source.observerLink as Node;
+    const edge = globalEdgePool.acquire();
+
+    edge.source = source;
+    edge.target = target;
+    edge.seenVersion = source.version;
+
+    source.observerLink = edge;
+
+    addFlag(source, NodeFlags.OBSERVER_EDGE);
+
+    /*
+     * The target must also be promoted if it is currently using
+     * direct representation.
+     */
+
+    if (!hasFlag(target, NodeFlags.SOURCE_EDGE)) {
         target.sourceLink = edge;
-    } else {
         addFlag(target, NodeFlags.SOURCE_EDGE);
-        target.sourceLink = edge;
+        return;
     }
 
-    // 7. Insert the SAME edge into source's observer list
-    if (hasFlag(source, NodeFlags.OBSERVER_EDGE)) {
-        const head = source.observerLink as Edge;
-        edge.nextSource = head;
-        head.prevSource = edge;
+    /*
+     * Target is already Edge-backed.
+     *
+     * Insert the SAME edge into its existing source list.
+     */
+    insertTargetEdge(target, edge);
+}
+
+/**
+ * Promote the target's existing direct relationship:
+ *
+ *     target.sourceLink = source
+ *
+ * into:
+ *
+ *     target.sourceLink   = Edge
+ *     source.observerLink = Edge
+ */
+
+function promoteTarget(target: Node): void {
+    const source = target.sourceLink as Node;
+    const edge = globalEdgePool.acquire();
+
+    edge.source = source;
+    edge.target = target;
+    edge.seenVersion = source.version;
+
+    target.sourceLink = edge;
+
+    addFlag(target, NodeFlags.SOURCE_EDGE);
+
+    /*
+     * The source must also be promoted if it is currently using
+     * direct representation.
+     */
+    if (!hasFlag(source, NodeFlags.OBSERVER_EDGE)) {
         source.observerLink = edge;
-    } else {
-        source.observerLink = target;
+        addFlag(source, NodeFlags.OBSERVER_EDGE);
+        return;
     }
+
+    /*
+     * Source is already Edge-backed.
+     *
+     * Insert the SAME edge into its existing observer list.
+     */
+    insertSourceEdge(source, edge);
+
+}
+
+/**
+ * Insert an Edge into the source's observer list.
+ */
+function insertSourceEdge(source: Node, edge: Edge): void {
+
+    const head = source.observerLink as Edge;
+    edge.prevSource = null;
+    edge.nextSource = head;
+
+    if (head !== null) {
+        head.prevSource = edge;
+    }
+
+    source.observerLink = edge;
+    addFlag(source, NodeFlags.OBSERVER_EDGE);
+}
+
+/**
+ * Insert an Edge into the target's dependency list.
+ */
+function insertTargetEdge(target: Node, edge: Edge): void {
+
+    const head = target.sourceLink as Edge;
+    edge.prevTarget = null;
+    edge.nextTarget = head;
+
+    if (head !== null) {
+        head.prevTarget = edge;
+    }
+
+    target.sourceLink = edge;
+    addFlag(target, NodeFlags.SOURCE_EDGE);
 }
