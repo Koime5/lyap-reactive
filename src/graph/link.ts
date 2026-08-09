@@ -2,7 +2,6 @@ import { globalEdgePool, type Edge } from "../core/edge.js";
 import { addFlag, hasFlag, NodeFlags } from "../core/flags.js";
 import { Node } from "../core/node.js";
 
-
 export type ExistingLink = Edge | true | null;
 
 export function findLink(
@@ -124,7 +123,6 @@ function promoteSource(source: Node): void {
  *     target.sourceLink   = Edge
  *     source.observerLink = Edge
  */
-
 function promoteTarget(target: Node): void {
     const source = target.sourceLink as Node;
     const edge = globalEdgePool.acquire();
